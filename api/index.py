@@ -24,8 +24,9 @@ CHART_BASE = "https://query1.finance.yahoo.com/v8/finance/chart/"
 
 
 def fetch_symbol(sym):
-    # 5d/1d gives a short series of daily closes; use last two for true 1-day change
-    url = CHART_BASE + urllib.parse.quote(sym) + "?range=5d&interval=1d"
+    # range=1d gives meta.chartPreviousClose = the prior trading day's close,
+    # which is exactly the "Previous Close" shown on quote pages.
+    url = CHART_BASE + urllib.parse.quote(sym) + "?range=1d&interval=1d"
     req = urllib.request.Request(
         url,
         headers={
@@ -38,27 +39,14 @@ def fetch_symbol(sym):
     result = data["chart"]["result"][0]
     meta = result.get("meta", {})
     price = meta.get("regularMarketPrice")
-
-    # Build the close series, dropping nulls (holidays/gaps)
-    closes = []
-    try:
-        raw = result["indicators"]["quote"][0]["close"]
-        closes = [c for c in raw if c is not None]
-    except Exception:
-        closes = []
-
-    prev = None
-    if price is not None and closes:
-        # if the last close equals the live price, the prior day is closes[-2]
-        if abs(closes[-1] - price) < 1e-6 and len(closes) >= 2:
-            prev = closes[-2]
-        else:
-            prev = closes[-1]
-    if prev is None:
-        prev = meta.get("previousClose") or meta.get("chartPreviousClose")
+    prev = meta.get("chartPreviousClose") or meta.get("previousClose")
     if price is None:
-        price = closes[-1] if closes else None
-
+        # fall back to last close in the series
+        try:
+            closes = [c for c in result["indicators"]["quote"][0]["close"] if c is not None]
+            price = closes[-1] if closes else None
+        except Exception:
+            pass
     change_pct = None
     if price is not None and prev:
         change_pct = round((price - prev) / prev * 100, 2)
