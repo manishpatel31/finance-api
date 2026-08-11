@@ -13,12 +13,11 @@ import urllib.parse
 SYMBOLS = {
     "nifty": "^NSEI",
     "sensex": "^BSESN",
-    "gold": "GC=F",
-    "silver": "SI=F",
-    "usdinr": "INR=X",
+    "gold": "GOLDBEES.NS",
+    "silver": "SILVERBEES.NS",
+    "usdinr": "USDINR=X",
 }
 
-GRAMS_PER_OZ = 31.1035
 
 # The v8 chart endpoint does NOT require a crumb/cookie, unlike v7/quote.
 CHART_BASE = "https://query1.finance.yahoo.com/v8/finance/chart/"
@@ -53,19 +52,13 @@ def build_payload():
         except Exception:
             vals[key] = (None, None)
 
-    usdinr = vals["usdinr"][0] or 0
-    gold_oz_usd = vals["gold"][0]
-    silver_oz_usd = vals["silver"][0]
-    gold_10g_inr = round(gold_oz_usd / GRAMS_PER_OZ * usdinr * 10, 0) if (gold_oz_usd and usdinr) else None
-    silver_kg_inr = round(silver_oz_usd / GRAMS_PER_OZ * usdinr * 1000, 0) if (silver_oz_usd and usdinr) else None
-
     return {
         "success": True,
         "nifty": {"value": vals["nifty"][0], "change_pct": vals["nifty"][1]},
         "sensex": {"value": vals["sensex"][0], "change_pct": vals["sensex"][1]},
-        "gold": {"value": gold_10g_inr, "unit": "INR/10g", "change_pct": vals["gold"][1]},
-        "silver": {"value": silver_kg_inr, "unit": "INR/kg", "change_pct": vals["silver"][1]},
-        "usdinr": usdinr,
+        "gold": {"value": vals["gold"][0], "unit": "GoldBeES", "change_pct": vals["gold"][1]},
+        "silver": {"value": vals["silver"][0], "unit": "SilverBeES", "change_pct": vals["silver"][1]},
+        "usdinr": {"value": vals["usdinr"][0], "change_pct": vals["usdinr"][1]},
     }
 
 
