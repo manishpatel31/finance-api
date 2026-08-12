@@ -89,7 +89,19 @@ def build_payload():
         except Exception:
             vals[key] = (None, None)
 
-    # fuel (optional — only if FUEL_API_KEY is set in the environment)
+    return {
+        "success": True,
+        "nifty": {"value": vals["nifty"][0], "change_pct": vals["nifty"][1]},
+        "sensex": {"value": vals["sensex"][0], "change_pct": vals["sensex"][1]},
+        "gold": {"value": vals["gold"][0], "unit": "GoldBeES", "change_pct": vals["gold"][1]},
+        "silver": {"value": vals["silver"][0], "unit": "SilverBeES", "change_pct": vals["silver"][1]},
+        "usdinr": {"value": vals["usdinr"][0], "change_pct": vals["usdinr"][1]},
+    }
+
+
+def build_fuel_payload():
+    """Separate endpoint so fuel is only fetched when the extension asks (once/day),
+    protecting the tight 100/month fuel quota."""
     try:
         petrol = fetch_fuel("petrol")
     except Exception:
@@ -98,14 +110,8 @@ def build_payload():
         diesel = fetch_fuel("diesel")
     except Exception:
         diesel = None
-
     return {
         "success": True,
-        "nifty": {"value": vals["nifty"][0], "change_pct": vals["nifty"][1]},
-        "sensex": {"value": vals["sensex"][0], "change_pct": vals["sensex"][1]},
-        "gold": {"value": vals["gold"][0], "unit": "GoldBeES", "change_pct": vals["gold"][1]},
-        "silver": {"value": vals["silver"][0], "unit": "SilverBeES", "change_pct": vals["silver"][1]},
-        "usdinr": {"value": vals["usdinr"][0], "change_pct": vals["usdinr"][1]},
         "petrol": {"value": petrol, "unit": "INR/L", "city": FUEL_CITY.title()},
         "diesel": {"value": diesel, "unit": "INR/L", "city": FUEL_CITY.title()},
     }
@@ -114,7 +120,11 @@ def build_payload():
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
-            payload = build_payload()
+            # /fuel -> fuel-only (called once/day by the extension to save quota)
+            if "fuel" in self.path.lower():
+                payload = build_fuel_payload()
+            else:
+                payload = build_payload()
             status = 200
         except Exception as e:
             payload = {"success": False, "error": str(e)}
