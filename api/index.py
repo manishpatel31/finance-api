@@ -1,5 +1,6 @@
 from http.server import BaseHTTPRequestHandler
 import json
+import os
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -53,6 +54,33 @@ def fetch_symbol(sym):
     return price, change_pct
 
 
+# ---- Fuel (indianapi.in) : petrol + diesel for a city, key from env ----
+FUEL_BASE = "https://fuel.indianapi.in"
+FUEL_CITY = os.environ.get("FUEL_CITY", "patna")
+
+
+def fetch_fuel(fuel_type):
+    """Return the price (float) for FUEL_CITY, or None. The API returns all
+    cities as an array; we filter for our city."""
+    key = os.environ.get("FUEL_API_KEY")
+    if not key:
+        return None
+    url = f"{FUEL_BASE}/live_fuel_price?fuel_type={fuel_type}&location_type=city&location={urllib.parse.quote(FUEL_CITY)}"
+    req = urllib.request.Request(url, headers={"x-api-key": key, "Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        data = json.loads(resp.read().decode())
+    if not isinstance(data, list):
+        return None
+    target = FUEL_CITY.strip().lower()
+    for row in data:
+        if str(row.get("city", "")).strip().lower() == target:
+            try:
+                return float(row.get("price"))
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
 def build_payload():
     vals = {}
     for key, sym in SYMBOLS.items():
@@ -61,6 +89,16 @@ def build_payload():
         except Exception:
             vals[key] = (None, None)
 
+    # fuel (optional — only if FUEL_API_KEY is set in the environment)
+    try:
+        petrol = fetch_fuel("petrol")
+    except Exception:
+        petrol = None
+    try:
+        diesel = fetch_fuel("diesel")
+    except Exception:
+        diesel = None
+
     return {
         "success": True,
         "nifty": {"value": vals["nifty"][0], "change_pct": vals["nifty"][1]},
@@ -68,6 +106,8 @@ def build_payload():
         "gold": {"value": vals["gold"][0], "unit": "GoldBeES", "change_pct": vals["gold"][1]},
         "silver": {"value": vals["silver"][0], "unit": "SilverBeES", "change_pct": vals["silver"][1]},
         "usdinr": {"value": vals["usdinr"][0], "change_pct": vals["usdinr"][1]},
+        "petrol": {"value": petrol, "unit": "INR/L", "city": FUEL_CITY.title()},
+        "diesel": {"value": diesel, "unit": "INR/L", "city": FUEL_CITY.title()},
     }
 
 
